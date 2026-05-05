@@ -1,0 +1,16 @@
+{
+  "name": "vpms",
+  "version": "1.0.0",
+  "description": "Visitor Pass Management System monorepo",
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

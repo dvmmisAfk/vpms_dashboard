@@ -1,0 +1,15 @@
+# vpms/.gitignore - Workspace ignores for dependencies and generated artifacts.
+
+# Secrets and local env (use .env.example in docs if needed)
+.env
+**/.env
+
+**/node_modules/
+**/dist/
+**/.vite/
+**/coverage/
+
+**/*.log
+
+# Frontend local overrides (recommended)
+frontend/.env.local

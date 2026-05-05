@@ -1,0 +1,62 @@
+/* frontend/src/index.css - Global styles, Tailwind entrypoint, and CSS variable theme tokens. */
+@import "tailwindcss";
+
+/* Map utilities to concrete colors (avoids broken rgb(.../<alpha-value>) output from @theme inline + channel vars). */
+@theme {
+  --color-vpms-bg: var(--app-vpms-bg);
+  --color-vpms-surface: var(--app-vpms-surface);
+  --color-vpms-text: var(--app-vpms-text);
+  --color-vpms-muted: var(--app-vpms-muted);
+  --color-vpms-border: var(--app-vpms-border);
+  --color-vpms-brand: var(--app-vpms-brand);
+  --color-vpms-accent: var(--app-vpms-accent);
+  --color-vpms-danger: var(--app-vpms-danger);
+}
+
+:root {
+  color-scheme: light;
+  --app-vpms-bg: #f8fafc;
+  --app-vpms-surface: #ffffff;
+  --app-vpms-text: #0f172a;
+  --app-vpms-muted: #64748b;
+  --app-vpms-border: #e2e8f0;
+  --app-vpms-brand: #4f46e5;
+  --app-vpms-accent: #10b981;
+  --app-vpms-danger: #ef4444;
+
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Helvetica,
+    Arial,
+    "Apple Color Emoji",
+    "Segoe UI Emoji";
+
+  background-color: var(--app-vpms-bg);
+  color: var(--app-vpms-text);
+}
+
+.dark {
+  color-scheme: dark;
+  --app-vpms-bg: #020617;
+  --app-vpms-surface: #0f172a;
+  --app-vpms-text: #e2e8f0;
+  --app-vpms-muted: #94a3b8;
+  --app-vpms-border: #334155;
+  --app-vpms-brand: #818cf8;
+  --app-vpms-accent: #34d399;
+  --app-vpms-danger: #f87171;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+}

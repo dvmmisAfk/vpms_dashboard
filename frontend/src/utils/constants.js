@@ -1,0 +1,45 @@
+// utils/constants.js
+
+export const ROLES = Object.freeze({
+  ADMIN: "admin",
+  SECURITY: "security",
+  EMPLOYEE: "employee",
+  VISITOR: "visitor",
+});
+
+export const VISITOR_STATUSES = Object.freeze({
+  PENDING: "pending",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+  CHECKED_IN: "checked-in",
+  CHECKED_OUT: "checked-out",
+});
+
+export const APPOINTMENT_STATUSES = Object.freeze({
+  PENDING: "pending",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+  CANCELLED: "cancelled",
+});
+
+export const CHECK_ACTIONS = Object.freeze({
+  CHECK_IN: "check-in",
+  CHECK_OUT: "check-out",
+});
+
+export const AUDIT_ACTIONS = Object.freeze({
+  USER_REGISTERED: "USER_REGISTERED",
+  BOOTSTRAP_ADMIN: "BOOTSTRAP_ADMIN",
+  VISITOR_CREATED: "VISITOR_CREATED",
+  VISITOR_SOFT_DELETED: "VISITOR_SOFT_DELETED",
+  VISITOR_APPROVED: "VISITOR_APPROVED",
+  VISITOR_REJECTED: "VISITOR_REJECTED",
+  APPOINTMENT_CREATED: "APPOINTMENT_CREATED",
+  APPOINTMENT_CANCELLED: "APPOINTMENT_CANCELLED",
+  APPOINTMENT_APPROVED: "APPOINTMENT_APPROVED",
+  APPOINTMENT_PRE_REGISTERED: "APPOINTMENT_PRE_REGISTERED",
+  PASS_ISSUED: "PASS_ISSUED",
+  PASS_DEACTIVATED: "PASS_DEACTIVATED",
+  CHECK_IN: "CHECK_IN",
+  CHECK_OUT: "CHECK_OUT",
+});
