@@ -3,7 +3,7 @@ const { Parser } = require("json2csv");
 const Visitor = require("../models/Visitor");
 const Pass = require("../models/Pass");
 const CheckLog = require("../models/CheckLog");
-const { VISITOR_STATUSES, CHECK_ACTIONS, ROLES } = require("../utils/constants");
+const { ROLES } = require("../utils/constants");
 
 const startOfUtcDay = () => {
   const now = new Date();
@@ -42,19 +42,19 @@ const dashboardStats = async (req, res, next) => {
     ] = await Promise.all([
       CheckLog.distinct("visitor", {
         ...checkFilter,
-        action: CHECK_ACTIONS.CHECK_IN,
+        action: 'check-in',
         timestamp: { $gte: todayStart },
       }).then((ids) => ids.length),
       CheckLog.distinct("visitor", {
         ...checkFilter,
-        action: CHECK_ACTIONS.CHECK_IN,
+        action: 'check-in',
         timestamp: { $gte: weekStart },
       }).then((ids) => ids.length),
-      Visitor.countDocuments({ ...visitorFilter, status: VISITOR_STATUSES.PENDING }),
+      Visitor.countDocuments({ ...visitorFilter, status: 'pending' }),
       Pass.countDocuments({ ...passFilter, isActive: true }),
       CheckLog.countDocuments({
         ...checkFilter,
-        action: CHECK_ACTIONS.CHECK_IN,
+        action: 'check-in',
         timestamp: { $gte: todayStart },
       }),
     ]);
@@ -77,33 +77,37 @@ const dashboardStats = async (req, res, next) => {
   }
 };
 
-const recentCheckIns = async (req, res, next) => {
-  try {
-    const filter = { action: CHECK_ACTIONS.CHECK_IN };
-    if (req.user.role === ROLES.SECURITY) filter.location = req.user.location;
-    const items = await CheckLog.find(filter).populate("visitor scannedBy").sort({ timestamp: -1 }).limit(10).lean();
-    return res.json({ success: true, data: items });
-  } catch (error) {
-    return next(error);
-  }
-};
+// switched this one to promise chain - was having issues with the async version
+const recentCheckIns = function(req, res, next) {
+  const filter = { action: 'check-in' }
+  if (req.user.role === ROLES.SECURITY) filter.location = req.user.location
 
-const exportVisitors = async (req, res, next) => {
-  try {
-    const filter = { isActive: true };
-    if (req.user.role === ROLES.SECURITY) filter.location = req.user.location;
+  CheckLog.find(filter)
+    .populate('visitor scannedBy')
+    .sort({ timestamp: -1 })
+    .limit(10)
+    .lean()
+    .then(function(items) {
+      res.json({ success: true, data: items })
+    })
+    .catch(next)
+}
 
-    const visitors = await Visitor.find(filter).populate("host", "name email").lean();
+const exportVisitors = function(req, res, next) {
+  var filter = { isActive: true }
+  if (req.user.role === ROLES.SECURITY) filter.location = req.user.location
 
-    const parser = new Parser({ fields: ["name", "email", "company", "status", "location", "createdAt", "host.name"] });
-    const csv = parser.parse(visitors);
-
-    res.header("Content-Type", "text/csv");
-    res.attachment("visitors.csv");
-    return res.send(csv);
-  } catch (error) {
-    return next(error);
-  }
-};
+  Visitor.find(filter)
+    .populate('host', 'name email')
+    .lean()
+    .then(function(visitors) {
+      const parser = new Parser({ fields: ['name', 'email', 'company', 'status', 'location', 'createdAt', 'host.name'] })
+      const csv = parser.parse(visitors)
+      res.header('Content-Type', 'text/csv')
+      res.attachment('visitors.csv')
+      res.send(csv)
+    })
+    .catch(next)
+}
 
 module.exports = { dashboardStats, recentCheckIns, exportVisitors };

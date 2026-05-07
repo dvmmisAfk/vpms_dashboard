@@ -1,41 +1,23 @@
-// components/ui/Button.jsx
-import PropTypes from "prop-types";
+// reusable button with loading state
 
-const variantClasses = {
-  primary:
-    "bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:opacity-60",
-  secondary:
-    "bg-vpms-surface text-vpms-text ring-1 ring-vpms-border hover:bg-white/70 dark:hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-vpms-brand/30 disabled:opacity-60",
-  danger:
-    "bg-vpms-danger text-white hover:opacity-95 focus-visible:ring-2 focus-visible:ring-vpms-danger/40 disabled:opacity-60",
-  ghost:
-    "bg-transparent hover:bg-black/5 dark:hover:bg-white/10 text-vpms-text disabled:opacity-60",
-};
-
-export function Button({
-  children,
-  type = "button",
-  variant = "primary",
-  className = "",
-  loading = false,
-  disabled,
-  ...rest
-}) {
-  const v = variantClasses[variant] || variantClasses.primary;
-  const isDisabled = disabled || loading;
-
-  return (
-    <button type={type} className={`inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold shadow-sm transition ${v} ${className}`} disabled={isDisabled} {...rest}>
-      {loading ? <span className="animate-pulse">Working...</span> : children}
-    </button>
-  );
+// button styles for each type
+const styles = {
+  primary: 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50',
+  secondary: 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 disabled:opacity-50',
+  danger: 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-50',
+  ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 disabled:opacity-50',
 }
 
-Button.propTypes = {
-  children: PropTypes.node.isRequired,
-  type: PropTypes.oneOf(["button", "submit", "reset"]),
-  variant: PropTypes.oneOf(["primary", "secondary", "danger", "ghost"]),
-  className: PropTypes.string,
-  loading: PropTypes.bool,
-  disabled: PropTypes.bool,
-};
+export function Button({ children, type = 'button', variant = 'primary', className = '', loading = false, disabled, ...rest }) {
+  const cls = styles[variant] || styles.primary
+  return (
+    <button
+      type={type}
+      disabled={disabled || loading}
+      className={`inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${cls} ${className}`}
+      {...rest}
+    >
+      {loading ? 'Loading...' : children}
+    </button>
+  )
+}

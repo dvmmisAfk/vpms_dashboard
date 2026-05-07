@@ -1,149 +1,240 @@
-// pages/security/CheckInPage.jsx
-import { useMemo, useState } from "react";
-import toast from "react-hot-toast";
+// security staff uses this to scan visitors in
+import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
+import { CheckCircle, XCircle, ScanLine } from 'lucide-react'
 
-import { checkIn as checkInApi, checkOut as checkOutApi } from "../../api/checks.js";
-import { verifyPassCode } from "../../api/passes.js";
-import { QRScanner } from "../../components/common/QRScanner.jsx";
-import { AppShell } from "../../components/layout/AppShell.jsx";
-import { PageHeader } from "../../components/layout/PageHeader.jsx";
-import { Badge } from "../../components/ui/Badge.jsx";
-import { Button } from "../../components/ui/Button.jsx";
-import { Card } from "../../components/ui/Card.jsx";
-import { Input } from "../../components/ui/Input.jsx";
-import { apiErrorMessage } from "../../utils/apiError.js";
-import { VISITOR_STATUSES } from "../../utils/constants.js";
-import { formatDateTime } from "../../utils/formatDate.js";
+import { checkIn as checkInApi, checkOut as checkOutApi, listCheckLogs } from '../../api/checks.js'
+import { verifyPassCode } from '../../api/passes.js'
+import QRScanner from '../../components/common/QRScanner.jsx'
+import { AppShell } from '../../components/layout/AppShell.jsx'
+import { PageHeader } from '../../components/layout/PageHeader.jsx'
+import { Button } from '../../components/ui/Button.jsx'
+import { formatDateTime } from '../../utils/formatDate.js'
 
 export default function CheckInPage() {
-  const [mode, setMode] = useState("in");
-  const [manualCode, setManualCode] = useState("");
-  const [verify, setVerify] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [panel, setPanel] = useState('idle') // idle | loading | success | error
+  const [passInfo, setPassInfo] = useState(null)
+  const [errorMsg, setErrorMsg] = useState('')
+  const [manualCode, setManualCode] = useState('')
+  const [scannerKey, setScannerKey] = useState(0)
+  const [countdown, setCountdown] = useState(null)
+  const countdownRef = useRef(null)
 
-  const decision = useMemo(() => {
-    if (!verify) return { tone: "amber", msg: "Scan a QR code or enter manually" };
+  // poll recent check-ins every 30 seconds
+  const recentQ = useQuery({
+    queryKey: ['today-checkins'],
+    queryFn: () => listCheckLogs({ today: true }),
+    refetchInterval: 30000,
+    staleTime: 10000
+  })
 
-    const now = Date.now();
-    const start = new Date(verify.validFrom).getTime();
-    const end = new Date(verify.validUntil).getTime();
-    const expired = now < start || now > end;
+  useEffect(() => {
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current)
+    }
+  }, [])
 
-    if (!verify.isActive || expired) return { tone: "red", msg: "Invalid or expired pass" };
-    if (verify.visitor?.status === VISITOR_STATUSES.CHECKED_IN && mode === "in") return { tone: "amber", msg: "Already checked in" };
+  const restartScanner = () => setScannerKey(k => k + 1)
 
-    return { tone: "green", msg: "Valid pass — proceed" };
-  }, [verify, mode]);
+  // reset after 10 seconds so they can scan next person
+  const startCountdown = (seconds, onDone) => {
+    setCountdown(seconds)
+    countdownRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownRef.current)
+          onDone()
+          return null
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }
 
-  const ring =
-    decision.tone === "green" ? "ring-emerald-600/35" : decision.tone === "red" ? "ring-red-600/35" : "ring-amber-600/35";
+  const verifyAndCheckIn = async (passCode) => {
+    const code = String(passCode || '').trim()
+    if (!code) return
 
-  async function runVerify(code) {
-    const trimmed = String(code || "").trim();
-    if (!trimmed) return;
-    setLoading(true);
+    setPanel('loading')
+    setPassInfo(null)
+    setErrorMsg('')
+
     try {
-      const data = await verifyPassCode(trimmed);
-      setVerify(data);
-      toast.success("Pass verified");
-    } catch (e) {
-      toast.error(apiErrorMessage(e, "Verify failed"));
-      setVerify(null);
-    } finally {
-      setLoading(false);
+      // step 1: verify the pass is valid
+      const data = await verifyPassCode(code)
+
+      if (!data || !data.isActive) {
+        setPanel('error')
+        setErrorMsg('Pass is inactive or not found')
+        setTimeout(restartScanner, 3000)
+        return
+      }
+
+      // step 2: log the check in
+      await checkInApi({ passCode: code })
+
+      // step 3: show the visitor info
+      setPassInfo(data)
+      setPanel('success')
+      toast.success('Checked in!')
+
+      startCountdown(10, () => {
+        setPanel('idle')
+        setPassInfo(null)
+        restartScanner()
+      })
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Check-in failed'
+      setPanel('error')
+      setErrorMsg(msg)
+      toast.error(msg)
+      setTimeout(restartScanner, 3000)
     }
   }
 
-  async function runAction(code) {
-    const trimmed = String(code || "").trim();
-    if (!trimmed) return;
-    setLoading(true);
+  const handleCheckOut = async () => {
+    if (!passInfo || !passInfo.passCode) return
     try {
-      if (mode === "in") await checkInApi({ passCode: trimmed });
-      else await checkOutApi({ passCode: trimmed });
-      toast.success(mode === "in" ? "Checked in" : "Checked out");
-      setVerify(null);
-    } catch (e) {
-      toast.error(apiErrorMessage(e, "Action failed"));
-    } finally {
-      setLoading(false);
+      await checkOutApi({ passCode: passInfo.passCode })
+      toast.success('Checked out!')
+      setPanel('idle')
+      setPassInfo(null)
+      restartScanner()
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Check-out failed')
     }
   }
 
   return (
-    <AppShell title="Check-in" breadcrumbs={["Security", "Check-in"]}>
+    <AppShell title="Check-In" breadcrumbs={['Security', 'Check-In']}>
       <PageHeader
         title="Scan visitor passes"
-        subtitle="Use the camera scanner or manual entry as a fallback."
-        actions={
-          <div className="flex gap-2">
-            <Button type="button" variant={mode === "in" ? "primary" : "secondary"} onClick={() => setMode("in")}>
-              Check-in
-            </Button>
-            <Button type="button" variant={mode === "out" ? "primary" : "secondary"} onClick={() => setMode("out")}>
-              Check-out
-            </Button>
-          </div>
-        }
+        subtitle="Use camera scanner or enter the pass code manually."
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card title="Scanner">
-          <div className="overflow-hidden rounded-xl">
-            <QRScanner
-              onDecoded={(text) => {
-                runVerify(text);
-              }}
-            />
-          </div>
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
-            <Input label="Manual pass code" value={manualCode} onChange={(e) => setManualCode(e.target.value)} />
-            <div className="sm:pt-6">
-              <Button type="button" className="w-full" variant="secondary" loading={loading} onClick={() => runVerify(manualCode)}>
-                Verify
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* qr scanner on the left */}
+        <div className="lg:col-span-2 space-y-3">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                Scanning...
+              </div>
+              <Button type="button" variant="secondary" onClick={restartScanner}>
+                Restart
+              </Button>
+            </div>
+
+            <div className="overflow-hidden rounded-xl bg-black">
+              <QRScanner
+                key={scannerKey}
+                onScan={verifyAndCheckIn}
+                onError={() => console.warn('scanner error')}
+              />
+            </div>
+
+            {/* backup if camera doesnt work */}
+            <div className="mt-3 flex gap-2">
+              <input
+                type="text"
+                placeholder="Or enter pass code manually..."
+                value={manualCode}
+                onChange={e => setManualCode(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && verifyAndCheckIn(manualCode)}
+                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <Button type="button" onClick={() => verifyAndCheckIn(manualCode)} disabled={!manualCode.trim()}>
+                Check In
               </Button>
             </div>
           </div>
-        </Card>
+        </div>
 
-        <Card title="Result" subtitle={decision.msg}>
-          <div className={`rounded-xl bg-vpms-bg p-4 ring-2 ${ring}`}>
-            {!verify ? <div className="text-sm text-vpms-muted">Waiting for scan…</div> : null}
+        {/* shows who just scanned in */}
+        <div className="lg:col-span-1">
+          {panel === 'idle' && (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 flex flex-col items-center justify-center text-center min-h-[280px]">
+              <ScanLine size={48} className="text-slate-300 mb-3" />
+              <p className="text-slate-500 text-sm">Scan a visitor pass to check in</p>
+            </div>
+          )}
 
-            {verify ? (
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-lg font-bold text-vpms-text">{verify.visitor?.name}</div>
-                  <Badge variant="status" value={verify.visitor?.status}>
-                    {verify.visitor?.status}
-                  </Badge>
-                </div>
-                <div>
-                  <span className="text-vpms-muted">Company:</span> <span className="font-semibold">{verify.visitor?.company || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-vpms-muted">Purpose:</span> <span className="font-semibold">{verify.visitor?.purpose || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-vpms-muted">Host:</span> <span className="font-semibold">{verify.visitor?.host?.name || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-vpms-muted">Validity:</span>{" "}
-                  <span className="font-semibold">
-                    {formatDateTime(verify.validFrom)} → {formatDateTime(verify.validUntil)}
-                  </span>
-                </div>
+          {panel === 'loading' && (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 flex items-center justify-center min-h-[280px]">
+              <div className="h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
 
-                <div className="pt-2">
-                  <Button type="button" className="w-full" loading={loading} onClick={() => runAction(verify.passCode)}>
-                    {mode === "in" ? "Confirm check-in" : "Confirm check-out"}
-                  </Button>
+          {/* green card when check in works */}
+          {panel === 'success' && passInfo && (
+            <div className="bg-green-50 border border-green-200 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle size={32} className="text-green-600" />
+                <div className="text-lg font-bold text-green-800">Checked In!</div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-green-200 flex items-center justify-center text-green-800 font-bold text-lg">
+                  {passInfo.visitor?.name?.charAt(0)}
+                </div>
+                <div>
+                  <div className="font-bold text-slate-800">{passInfo.visitor?.name}</div>
+                  <div className="text-sm text-slate-500">{passInfo.visitor?.company || '—'}</div>
                 </div>
               </div>
-            ) : null}
-          </div>
-        </Card>
+
+              <div className="text-sm space-y-1">
+                <div><span className="text-slate-500">Host:</span> <span className="font-semibold">{passInfo.visitor?.host?.name || '—'}</span></div>
+                <div><span className="text-slate-500">Purpose:</span> <span className="font-semibold">{passInfo.visitor?.purpose || '—'}</span></div>
+                <div><span className="text-slate-500">Time:</span> <span className="font-semibold">{formatDateTime(new Date())}</span></div>
+              </div>
+
+              <Button type="button" variant="secondary" className="w-full" onClick={handleCheckOut}>
+                Check Out
+              </Button>
+
+              {countdown !== null && (
+                <p className="text-xs text-center text-slate-400">Resetting in {countdown}s...</p>
+              )}
+            </div>
+          )}
+
+          {/* red card when something goes wrong */}
+          {panel === 'error' && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-5 space-y-3 text-center">
+              <XCircle size={40} className="text-red-500 mx-auto" />
+              <div className="font-bold text-red-700">Check-In Failed</div>
+              <p className="text-sm text-red-600">{errorMsg}</p>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={() => { setPanel('idle'); restartScanner() }}
+              >
+                Try Again
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-6 bg-white rounded-2xl border border-slate-200 p-4">
+        <div className="text-sm font-bold text-slate-700 mb-3">Recent Check-ins Today</div>
+        {recentQ.isLoading && <div className="text-sm text-slate-400">Loading...</div>}
+        {!recentQ.isLoading && (recentQ.data || []).length === 0 && (
+          <div className="text-sm text-slate-400">No check-ins recorded today.</div>
+        )}
+        <div className="space-y-2">
+          {(recentQ.data || []).slice(0, 10).map(log => (
+            <div key={log._id} className="flex items-center justify-between text-sm py-1 border-b border-slate-50 last:border-0">
+              <span className="font-semibold">{log.visitor?.name || '—'}</span>
+              <span className="text-slate-500">{formatDateTime(log.timestamp)}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </AppShell>
-  );
+  )
 }

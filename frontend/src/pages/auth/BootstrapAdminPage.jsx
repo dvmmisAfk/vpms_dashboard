@@ -1,22 +1,13 @@
 // pages/auth/BootstrapAdminPage.jsx
-import { zodResolver } from "@hookform/resolvers/zod";
 import toast from "react-hot-toast";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
-import { z } from "zod";
 
 import { bootstrapAdmin } from "../../api/bootstrap.js";
 import { AuthPageShell } from "../../components/layout/AuthPageShell.jsx";
-import { apiErrorMessage } from "../../utils/apiError.js";
 import { Button } from "../../components/ui/Button.jsx";
 import { Card } from "../../components/ui/Card.jsx";
 import { Input } from "../../components/ui/Input.jsx";
-
-const schema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
-  password: z.string().min(12),
-});
 
 export default function BootstrapAdminPage() {
   const navigate = useNavigate();
@@ -26,7 +17,6 @@ export default function BootstrapAdminPage() {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm({
-    resolver: zodResolver(schema),
     defaultValues: { name: "", email: "", password: "" },
   });
 
@@ -41,21 +31,38 @@ export default function BootstrapAdminPage() {
               toast.success("Admin created. Please sign in.");
               navigate("/login");
             } catch (e) {
-              toast.error(apiErrorMessage(e, "Bootstrap failed"));
+              toast.error(e?.response?.data?.message || "Bootstrap failed");
             }
           })}
           noValidate
         >
-          <Input label="Admin name" error={errors.name?.message} {...register("name")} />
-          <Input label="Email" type="email" error={errors.email?.message} {...register("email")} />
-          <Input label="Password" type="password" error={errors.password?.message} {...register("password")} />
+          <Input
+            label="Admin name"
+            error={errors.name?.message}
+            {...register("name", { required: "Name is required" })}
+          />
+          <Input
+            label="Email"
+            type="email"
+            error={errors.email?.message}
+            {...register("email", { required: "Email is required" })}
+          />
+          <Input
+            label="Password"
+            type="password"
+            error={errors.password?.message}
+            {...register("password", {
+              required: "Password is required",
+              minLength: { value: 12, message: "Password must be at least 12 characters" }
+            })}
+          />
           <Button type="submit" className="w-full" loading={isSubmitting}>
             Create admin
           </Button>
 
-          <div className="pt-2 text-center text-xs text-vpms-muted">
+          <div className="pt-2 text-center text-xs text-slate-500">
             Already onboarded?{" "}
-            <Link className="font-semibold text-vpms-brand underline" to="/login">
+            <Link className="font-semibold text-indigo-600 underline" to="/login">
               Sign in
             </Link>
           </div>

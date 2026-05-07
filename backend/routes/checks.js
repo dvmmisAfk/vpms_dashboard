@@ -7,7 +7,7 @@ const router = express.Router();
 const auth = require("../middleware/auth");
 const roleCheck = require("../middleware/roleCheck");
 const { checkIn, checkOut, listLogs } = require("../controllers/checkController");
-const { ROLES, CHECK_ACTIONS } = require("../utils/constants");
+const { ROLES } = require("../utils/constants");
 
 router.post(
   "/check-in",
@@ -38,7 +38,7 @@ router.get(
   auth,
   roleCheck([ROLES.ADMIN, ROLES.SECURITY]),
   [
-    query("action").optional().isIn(Object.values(CHECK_ACTIONS)),
+    query("action").optional().isIn(['check-in', 'check-out']),
     query("visitor").optional().isMongoId(),
     query("start").optional().isISO8601().toDate(),
     query("end").optional().isISO8601().toDate(),

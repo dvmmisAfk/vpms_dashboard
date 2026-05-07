@@ -1,7 +1,7 @@
 // controllers/bootstrapController.js
 const User = require("../models/User");
-const { ROLES, AUDIT_ACTIONS } = require("../utils/constants");
-const createAuditLog = require("../utils/auditLog");
+const { ROLES } = require("../utils/constants");
+const AuditLog = require("../models/AuditLog");
 const { MESSAGES } = require("../utils/messages");
 const { sendIfValidationErrors } = require("../utils/validateRequest");
 
@@ -28,13 +28,7 @@ const createInitialAdmin = async (req, res, next) => {
       isActive: true,
     });
 
-    await createAuditLog({
-      req,
-      actor: admin._id,
-      action: AUDIT_ACTIONS.BOOTSTRAP_ADMIN,
-      targetModel: "User",
-      targetId: admin._id.toString(),
-    });
+    AuditLog.create({ actor: admin._id, action: 'bootstrap-admin', targetModel: 'User', targetId: admin._id.toString(), ip: req.ip }).catch(e => console.warn('audit log failed:', e.message));
 
     return res.status(201).json({ success: true, data: { id: admin._id, email: admin.email, role: admin.role } });
   } catch (error) {

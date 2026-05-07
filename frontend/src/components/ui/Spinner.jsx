@@ -1,10 +1,5 @@
-// components/ui/Spinner.jsx
-import PropTypes from "prop-types";
-
-export function Spinner({ className = "" }) {
-  return <div className={`h-5 w-5 animate-spin rounded-full border-2 border-vpms-brand border-t-transparent ${className}`} role="status" aria-label="Loading" />;
+export function Spinner({ className = '' }) {
+  return (
+    <div className={`h-6 w-6 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent ${className}`} />
+  )
 }
-
-Spinner.propTypes = {
-  className: PropTypes.string,
-};

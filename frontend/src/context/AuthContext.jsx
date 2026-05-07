@@ -1,146 +1,67 @@
-// context/AuthContext.jsx
-import PropTypes from "prop-types";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+// stores the logged in user info and login/logout functions
+import { createContext, useContext, useEffect, useState } from 'react'
+import { loginUser, fetchMe } from '../api/auth.js'
+import api from '../api/client.js'
 
-import { fetchMe, loginUser } from "../api/auth.js";
-import api, { tokenStorageKey } from "../api/client.js";
-import { ROLES } from "../utils/constants.js";
-
-const AuthContext = createContext(null);
-
-function decodeJwtPayload(token) {
-  try {
-    const part = token.split(".")[1];
-    if (!part) return null;
-    let base64 = part.replace(/-/g, "+").replace(/_/g, "/");
-    const pad = base64.length % 4;
-    if (pad) base64 += "=".repeat(4 - pad);
-    const json = atob(base64);
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
-}
-
-function normalizeUser(raw) {
-  if (!raw) return null;
-  const id = raw.id ?? raw._id;
-  return {
-    ...raw,
-    id: id != null ? String(id) : undefined,
-  };
-}
+const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => localStorage.getItem(tokenStorageKey) || "");
-  const [profile, setProfile] = useState(null);
+  const [user, setUser] = useState(null)
+  const [token, setToken] = useState(() => localStorage.getItem('token') || '')
 
-  const refreshProfile = useCallback(async () => {
-    if (!localStorage.getItem(tokenStorageKey)) return null;
-    const me = normalizeUser(await fetchMe());
-    setProfile(me);
-    return me;
-  }, []);
-
+  // on first load, restore session if we have a saved token
   useEffect(() => {
-    const existing = localStorage.getItem(tokenStorageKey) || "";
-    setToken(existing);
-    if (existing) {
-      api.defaults.headers.common.Authorization = `Bearer ${existing}`;
-      refreshProfile().catch(() => {
-        /* non-fatal: user might be stale */
-      });
-    }
-  }, [refreshProfile]);
+    const saved = localStorage.getItem('token')
 
-  const claimsUser = useMemo(() => {
-    if (!token) return null;
-    const payload = decodeJwtPayload(token);
-    if (!payload?.id) return null;
-    return {
-      id: String(payload.id),
-      role: payload.role,
-      name: payload.name,
-      email: payload.email,
-    };
-  }, [token]);
+    // had a bug where 'undefined' string was being stored, this guards against that
+    if (!saved || saved === 'undefined' || saved === undefined) return
 
-  const user = profile || claimsUser;
-  const isAuthenticated = Boolean(token && user?.role && user?.id);
+    api.defaults.headers.common.Authorization = 'Bearer ' + saved
 
-  const login = useCallback(
-    async ({ email, password }) => {
-      const res = await loginUser({ email, password });
-      const nextToken = res.token;
-      if (!nextToken) throw new Error("Missing token");
+    fetchMe()
+      .then(me => setUser(me))
+      .catch(() => {
+        // token probably expired, clear it
+        localStorage.removeItem('token')
+        setToken('')
+      })
+  }, [])
 
-      localStorage.setItem(tokenStorageKey, nextToken);
-      setToken(nextToken);
-      api.defaults.headers.common.Authorization = `Bearer ${nextToken}`;
+  // save token and user to state and localstorage
+  const login = async ({ email, password }) => {
+    const res = await loginUser({ email, password })
+    localStorage.setItem('token', res.token)
+    setToken(res.token)
+    api.defaults.headers.common.Authorization = 'Bearer ' + res.token
+    setUser(res.user)
+    return res.user
+  }
 
-      const fromLogin = normalizeUser(res.user);
-      setProfile(fromLogin);
-      try {
-        const refreshed = await fetchMe();
-        const next = normalizeUser(refreshed);
-        if (next?.id && next.role) setProfile(next);
-      } catch {
-        localStorage.setItem(tokenStorageKey, nextToken);
-        api.defaults.headers.common.Authorization = `Bearer ${nextToken}`;
-      }
+  // clear everything
+  const logout = () => {
+    localStorage.removeItem('token')
+    delete api.defaults.headers.common.Authorization
+    setToken('')
+    setUser(null)
+  }
 
-      return fromLogin;
-    },
-    [],
-  );
+  // use this in components to get user info
+  const hasAnyRole = (roles = []) => {
+    if (!user) return false
+    return roles.includes(user.role)
+  }
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(tokenStorageKey);
-    delete api.defaults.headers.common.Authorization;
-    setToken("");
-    setProfile(null);
-  }, []);
+  const isAuthenticated = !!token && !!user
 
-  const hasRole = useCallback(
-    (role) => {
-      if (!user?.role) return false;
-      return user.role === role;
-    },
-    [user?.role],
-  );
-
-  const hasAnyRole = useCallback(
-    (roles = []) => {
-      if (!user?.role) return false;
-      return roles.includes(user.role);
-    },
-    [user?.role],
-  );
-
-  const value = useMemo(
-    () => ({
-      token,
-      user,
-      isAuthenticated,
-      login,
-      logout,
-      refreshProfile,
-      hasRole,
-      hasAnyRole,
-      roles: ROLES,
-    }),
-    [token, user, isAuthenticated, login, logout, refreshProfile, hasRole, hasAnyRole],
-  );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, token, isAuthenticated, login, logout, hasAnyRole }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
-AuthProvider.propTypes = {
-  children: PropTypes.node.isRequired,
-};
-
 export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used inside AuthProvider')
+  return ctx
 }

@@ -1,68 +1,49 @@
-// hooks/useVisitors.js
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-import { approveVisitor as approveVisitorApi, createVisitor as createVisitorApi, getVisitor, listVisitors, rejectVisitor as rejectVisitorApi, updateVisitor as updateVisitorApi } from "../api/visitors.js";
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { approveVisitor, createVisitor, getVisitor, listVisitors, rejectVisitor } from '../api/visitors.js'
 
 export function useVisitorsList(params) {
   return useQuery({
-    queryKey: ["visitors", params],
+    queryKey: ['visitors', params],
     queryFn: () => listVisitors(params),
-    staleTime: 30_000,
-    keepPreviousData: true,
-  });
+    staleTime: 30000,
+  })
 }
 
 export function useVisitorDetail(id) {
   return useQuery({
-    queryKey: ["visitor", id],
+    queryKey: ['visitor', id],
     queryFn: () => getVisitor(id),
-    enabled: Boolean(id),
-    staleTime: 15_000,
-  });
+    enabled: !!id,
+    staleTime: 15000,
+  })
 }
 
 export function useCreateVisitor() {
-  const qc = useQueryClient();
-
+  const qc = useQueryClient()
   return useMutation({
-    mutationFn: createVisitorApi,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["visitors"] }),
-  });
+    mutationFn: createVisitor,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['visitors'] }),
+  })
 }
 
 export function useApproveVisitor(id) {
-  const qc = useQueryClient();
-
+  const qc = useQueryClient()
   return useMutation({
-    mutationFn: () => approveVisitorApi(id),
+    mutationFn: () => approveVisitor(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["visitors"] });
-      qc.invalidateQueries({ queryKey: ["visitor", id] });
-      qc.invalidateQueries({ queryKey: ["appointments"] });
+      qc.invalidateQueries({ queryKey: ['visitors'] })
+      qc.invalidateQueries({ queryKey: ['visitor', id] })
     },
-  });
+  })
 }
 
 export function useRejectVisitor(id) {
-  const qc = useQueryClient();
-
+  const qc = useQueryClient()
   return useMutation({
-    mutationFn: () => rejectVisitorApi(id),
+    mutationFn: () => rejectVisitor(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["visitors"] });
-      qc.invalidateQueries({ queryKey: ["visitor", id] });
+      qc.invalidateQueries({ queryKey: ['visitors'] })
+      qc.invalidateQueries({ queryKey: ['visitor', id] })
     },
-  });
-}
-
-export function useUpdateVisitor(id) {
-  const qc = useQueryClient();
-
-  return useMutation({
-    mutationFn: (payload) => updateVisitorApi(id, payload),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["visitors"] });
-      qc.invalidateQueries({ queryKey: ["visitor", id] });
-    },
-  });
+  })
 }

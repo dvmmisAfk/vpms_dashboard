@@ -10,7 +10,6 @@ import { Button } from "../../components/ui/Button.jsx";
 import { Card } from "../../components/ui/Card.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { Spinner } from "../../components/ui/Spinner.jsx";
-import { apiErrorMessage } from "../../utils/apiError.js";
 import { formatDateTime } from "../../utils/formatDate.js";
 
 export default function PublicPassPage() {
@@ -45,7 +44,7 @@ export default function PublicPassPage() {
                     const res = await verifyPassCode(code);
                     setData(res);
                   } catch (e) {
-                    setError(apiErrorMessage(e, "Not found"));
+                    setError(e?.response?.data?.message || "Not found");
                     setData(null);
                   } finally {
                     setLoading(false);
@@ -56,7 +55,7 @@ export default function PublicPassPage() {
               </Button>
             </div>
           </div>
-          {error ? <div className="mt-3 text-sm text-vpms-danger">{error}</div> : null}
+          {error ? <div className="mt-3 text-sm text-red-500">{error}</div> : null}
         </Card>
 
         {loading ? (
@@ -80,23 +79,23 @@ export default function PublicPassPage() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="md:col-span-1">
                 {data.visitor?.photoUrl ? (
-                  <img src={data.visitor.photoUrl} alt="" className="w-full rounded-xl ring-1 ring-vpms-border" />
+                  <img src={data.visitor.photoUrl} alt="" className="w-full rounded-xl ring-1 ring-slate-200" />
                 ) : (
-                  <div className="rounded-xl bg-vpms-bg p-6 text-center text-sm text-vpms-muted">No photo</div>
+                  <div className="rounded-xl bg-slate-50 p-6 text-center text-sm text-slate-500">No photo</div>
                 )}
               </div>
               <div className="md:col-span-2 space-y-2 text-sm">
                 <div>
-                  <span className="text-vpms-muted">Pass code:</span> <span className="font-semibold">{data.passCode}</span>
+                  <span className="text-slate-500">Pass code:</span> <span className="font-semibold">{data.passCode}</span>
                 </div>
                 <div>
-                  <span className="text-vpms-muted">Valid:</span>{" "}
+                  <span className="text-slate-500">Valid:</span>{" "}
                   <span className="font-semibold">
                     {formatDateTime(data.validFrom)} → {formatDateTime(data.validUntil)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-vpms-muted">Host:</span> <span className="font-semibold">{data.visitor?.host?.name || ""}</span>
+                  <span className="text-slate-500">Host:</span> <span className="font-semibold">{data.visitor?.host?.name || ""}</span>
                 </div>
                 <div className="pt-2">
                   <QRCode value={data.passCode} size={180} />

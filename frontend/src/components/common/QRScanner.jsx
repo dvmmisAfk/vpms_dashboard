@@ -1,54 +1,49 @@
-// components/common/QRScanner.jsx
-import { Html5Qrcode } from "html5-qrcode";
-import PropTypes from "prop-types";
-import { useEffect, useMemo, useRef } from "react";
+// qr code scanner component using html5-qrcode library
+import { useEffect, useRef } from 'react'
+import { Html5Qrcode } from 'html5-qrcode'
 
-export function QRScanner({ onDecoded, className = "" }) {
-  const regionId = useMemo(() => `qr-${Math.random().toString(16).slice(2)}`, []);
-  const scannerRef = useRef(null);
+export default function QRScanner({ onScan, onError }) {
+  const scannerRef = useRef(null)
+  const startedRef = useRef(false)
+  // use a stable id so react doesn't mess with it on re-renders
+  const divId = useRef('qr-reader-' + Math.random().toString(36).slice(2)).current
 
   useEffect(() => {
-    let cancelled = false;
+    const scanner = new Html5Qrcode(divId)
+    scannerRef.current = scanner
 
-    async function start() {
-      const qr = new Html5Qrcode(regionId);
-      scannerRef.current = qr;
+    // start scanner when component loads
+    scanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      (decodedText) => {
+        onScan(decodedText)
+      },
+      () => {
+        // this fires constantly while scanning, not a real error
+      }
+    ).then(() => {
+      startedRef.current = true
+    }).catch(err => {
+      // usually happens if camera permission denied
+      console.warn('couldnt start camera:', err)
+      if (onError) onError(err)
+    })
 
-      await qr.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 260, height: 260 } },
-        (decodedText) => {
-          if (cancelled) return;
-          onDecoded?.(decodedText);
-        },
-        () => {
-          /* frames without match */
-        },
-      );
-    }
-
-    start().catch(() => {
-      /* camera permissions / device issues */
-    });
-
+    // stop scanner when leaving the page (important!)
     return () => {
-      cancelled = true;
-      const qr = scannerRef.current;
-      scannerRef.current = null;
-      if (!qr) return;
-      qr
-        .stop()
-        .then(() => qr.clear())
-        .catch(() => {
-          /* ignore */
-        });
-    };
-  }, [onDecoded, regionId]);
+      if (startedRef.current) {
+        scanner.stop().catch(() => {})
+      }
+    }
+  }, []) // only run once, the key prop handles restarts
 
-  return <div id={regionId} className={`w-full overflow-hidden rounded-xl bg-black ${className}`} />;
+  return (
+    <div>
+      <div id={divId} style={{ width: '100%' }} />
+      <p style={{ fontSize: 12, color: '#888', marginTop: 8, textAlign: 'center' }}>
+        Point camera at QR code
+      </p>
+    </div>
+  )
 }
-
-QRScanner.propTypes = {
-  onDecoded: PropTypes.func,
-  className: PropTypes.string,
-};

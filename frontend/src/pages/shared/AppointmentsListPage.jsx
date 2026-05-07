@@ -1,5 +1,5 @@
 // pages/shared/AppointmentsListPage.jsx
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { AppShell } from "../../components/layout/AppShell.jsx";
 import { PageHeader } from "../../components/layout/PageHeader.jsx";
@@ -18,7 +18,9 @@ export default function AppointmentsListPage() {
   const [date, setDate] = useState("");
   const [status, setStatus] = useState("");
 
-  const params = useMemo(() => ({ date: date || undefined, status: status || undefined }), [date, status]);
+  const params = {}
+  if (date) params.date = date
+  if (status) params.status = status
   const apptQ = useAppointments(params);
   const approveM = useApproveAppointment();
 
@@ -51,7 +53,7 @@ export default function AppointmentsListPage() {
             Approve
           </Button>
         ) : (
-          <span className="text-xs text-vpms-muted">—</span>
+          <span className="text-xs text-slate-400">—</span>
         ),
     },
   ];

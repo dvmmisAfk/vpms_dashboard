@@ -8,7 +8,6 @@ import { PageHeader } from "../../components/layout/PageHeader.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { Table } from "../../components/ui/Table.jsx";
 import { useDeactivatePass } from "../../hooks/usePasses.js";
-import { apiErrorMessage } from "../../utils/apiError.js";
 import { formatDateTime } from "../../utils/formatDate.js";
 
 export default function PassesListPage() {
@@ -45,14 +44,14 @@ export default function PassesListPage() {
                 await deactivateM.mutateAsync(row._id);
                 toast.success("Pass deactivated");
               } catch (e) {
-                toast.error(apiErrorMessage(e, "Failed"));
+                toast.error('Failed to deactivate');
               }
             }}
           >
             Deactivate
           </Button>
         ) : (
-          <span className="text-xs text-vpms-muted">—</span>
+          <span className="text-xs text-slate-400">—</span>
         ),
     },
   ];

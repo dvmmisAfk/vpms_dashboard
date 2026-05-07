@@ -1,75 +1,191 @@
-// App.jsx
-import { Navigate, Route, Routes } from "react-router-dom";
+// main app file - sets up routing and providers
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Toaster } from 'react-hot-toast'
+import { AuthProvider, useAuth } from './context/AuthContext.jsx'
+import { ThemeProvider } from './context/ThemeContext.jsx'
+import AppLayout from './components/layout/AppLayout.jsx'
 
-import HomeRedirect from "./components/layout/HomeRedirect.jsx";
-import { ProtectedRoute } from "./components/layout/ProtectedRoute.jsx";
-import AnalyticsPage from "./pages/admin/AnalyticsPage.jsx";
-import AuditLogsPage from "./pages/admin/AuditLogsPage.jsx";
-import DashboardPage from "./pages/admin/DashboardPage.jsx";
-import ReportsPage from "./pages/admin/ReportsPage.jsx";
-import UsersPage from "./pages/admin/UsersPage.jsx";
-import BootstrapAdminPage from "./pages/auth/BootstrapAdminPage.jsx";
-import LoginPage from "./pages/auth/LoginPage.jsx";
-import InviteVisitorPage from "./pages/employee/InviteVisitorPage.jsx";
-import MyAppointmentsPage from "./pages/employee/MyAppointmentsPage.jsx";
-import CheckInPage from "./pages/security/CheckInPage.jsx";
-import PassIssuePage from "./pages/security/PassIssuePage.jsx";
-import AppointmentsListPage from "./pages/shared/AppointmentsListPage.jsx";
-import PassesListPage from "./pages/shared/PassesListPage.jsx";
-import PublicPassPage from "./pages/shared/PublicPassPage.jsx";
-import VisitorDetailPage from "./pages/shared/VisitorDetailPage.jsx";
-import VisitorsListPage from "./pages/shared/VisitorsListPage.jsx";
-import MyPassPage from "./pages/visitor/MyPassPage.jsx";
-import PreRegisterPage from "./pages/visitor/PreRegisterPage.jsx";
-import { ROLES } from "./utils/constants.js";
+// pages
+import LoginPage from './pages/auth/LoginPage.jsx'
+import BootstrapAdminPage from './pages/auth/BootstrapAdminPage.jsx'
+import DashboardPage from './pages/admin/DashboardPage.jsx'
+import AnalyticsPage from './pages/admin/AnalyticsPage.jsx'
+import AuditLogsPage from './pages/admin/AuditLogsPage.jsx'
+import ReportsPage from './pages/admin/ReportsPage.jsx'
+import UsersPage from './pages/admin/UsersPage.jsx'
+import VisitorsListPage from './pages/shared/VisitorsListPage.jsx'
+import VisitorDetailPage from './pages/shared/VisitorDetailPage.jsx'
+import AppointmentsListPage from './pages/shared/AppointmentsListPage.jsx'
+import PassesListPage from './pages/shared/PassesListPage.jsx'
+import PublicPassPage from './pages/shared/PublicPassPage.jsx'
+import CheckInPage from './pages/security/CheckInPage.jsx'
+import PassIssuePage from './pages/security/PassIssuePage.jsx'
+import InviteVisitorPage from './pages/employee/InviteVisitorPage.jsx'
+import MyAppointmentsPage from './pages/employee/MyAppointmentsPage.jsx'
+import MyPassPage from './pages/visitor/MyPassPage.jsx'
+import PreRegisterPage from './pages/visitor/PreRegisterPage.jsx'
+
+const queryClient = new QueryClient()
+
+// redirect to login if not authenticated
+function ProtectedRoute({ children, roles }) {
+  const { isAuthenticated, user } = useAuth()
+
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+
+  // redirect to dashboard if wrong role
+  if (roles && user && !roles.includes(user.role)) return <Navigate to="/dashboard" replace />
+
+  return <AppLayout>{children}</AppLayout>
+}
+
+// all the pages
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/bootstrap" element={<BootstrapAdminPage />} />
+      <Route path="/pre-register/:token" element={<PreRegisterPage />} />
+      <Route path="/pass/:passCode" element={<PublicPassPage />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute roles={['admin', 'security', 'employee']}>
+            <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/visitors"
+        element={
+          <ProtectedRoute roles={['admin', 'security']}>
+            <VisitorsListPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/visitors/:id"
+        element={
+          <ProtectedRoute roles={['admin', 'security', 'employee']}>
+            <VisitorDetailPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/appointments"
+        element={
+          <ProtectedRoute>
+            <AppointmentsListPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/passes"
+        element={
+          <ProtectedRoute roles={['admin', 'security']}>
+            <PassesListPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/check-in"
+        element={
+          <ProtectedRoute roles={['security']}>
+            <CheckInPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/issue-pass"
+        element={
+          <ProtectedRoute roles={['security']}>
+            <PassIssuePage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/invite"
+        element={
+          <ProtectedRoute roles={['employee']}>
+            <InviteVisitorPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/my-appointments"
+        element={
+          <ProtectedRoute roles={['employee']}>
+            <MyAppointmentsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/reports"
+        element={
+          <ProtectedRoute roles={['admin']}>
+            <ReportsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute roles={['admin']}>
+            <AnalyticsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/users"
+        element={
+          <ProtectedRoute roles={['admin']}>
+            <UsersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/audit-logs"
+        element={
+          <ProtectedRoute roles={['admin']}>
+            <AuditLogsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/my-pass"
+        element={
+          <ProtectedRoute roles={['visitor']}>
+            <MyPassPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
+  )
+}
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<HomeRedirect />} />
-
-      <Route path="/bootstrap" element={<BootstrapAdminPage />} />
-      <Route path="/login" element={<LoginPage />} />
-
-      <Route path="/pre-register/:token" element={<PreRegisterPage />} />
-      <Route path="/pass/:passCode" element={<PublicPassPage />} />
-
-      <Route element={<ProtectedRoute roles={[ROLES.ADMIN, ROLES.SECURITY, ROLES.EMPLOYEE]} />}>
-        <Route path="/dashboard" element={<DashboardPage />} />
-      </Route>
-
-      <Route element={<ProtectedRoute />}>
-        <Route path="/appointments" element={<AppointmentsListPage />} />
-      </Route>
-
-      <Route element={<ProtectedRoute roles={[ROLES.ADMIN, ROLES.SECURITY]} />}>
-        <Route path="/visitors" element={<VisitorsListPage />} />
-        <Route path="/visitors/:id" element={<VisitorDetailPage />} />
-        <Route path="/passes" element={<PassesListPage />} />
-      </Route>
-
-      <Route element={<ProtectedRoute roles={[ROLES.SECURITY]} />}>
-        <Route path="/check-in" element={<CheckInPage />} />
-        <Route path="/issue-pass" element={<PassIssuePage />} />
-      </Route>
-
-      <Route element={<ProtectedRoute roles={[ROLES.EMPLOYEE]} />}>
-        <Route path="/invite" element={<InviteVisitorPage />} />
-        <Route path="/my-appointments" element={<MyAppointmentsPage />} />
-      </Route>
-
-      <Route element={<ProtectedRoute roles={[ROLES.ADMIN]} />}>
-        <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
-        <Route path="/users" element={<UsersPage />} />
-        <Route path="/audit-logs" element={<AuditLogsPage />} />
-      </Route>
-
-      <Route element={<ProtectedRoute roles={[ROLES.VISITOR]} />}>
-        <Route path="/my-pass" element={<MyPassPage />} />
-      </Route>
-
-      <Route path="*" element={<HomeRedirect />} />
-    </Routes>
-  );
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <ThemeProvider>
+          <BrowserRouter>
+            <AppRoutes />
+            <Toaster position="top-right" />
+          </BrowserRouter>
+        </ThemeProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  )
 }

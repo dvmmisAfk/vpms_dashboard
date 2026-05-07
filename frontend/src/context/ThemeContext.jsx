@@ -1,48 +1,24 @@
-// context/ThemeContext.jsx
-import PropTypes from "prop-types";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useState } from 'react'
 
-const STORAGE_KEY = "vpms_dark_mode";
-
-const ThemeContext = createContext({
-  theme: "light",
-  setDarkMode: () => {},
-});
-
-const decodeStoredPreference = () => {
-  try {
-    return localStorage.getItem(STORAGE_KEY);
-  } catch {
-    return null;
-  }
-};
+const ThemeContext = createContext(null)
 
 export function ThemeProvider({ children }) {
-  const [darkMode, setDarkModeState] = useState(() => decodeStoredPreference() === "true");
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('dark') === 'true')
 
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle("dark", darkMode);
-    try {
-      localStorage.setItem(STORAGE_KEY, darkMode ? "true" : "false");
-    } catch {
-      /* ignore storage failures */
-    }
-  }, [darkMode]);
+    document.documentElement.classList.toggle('dark', darkMode)
+    localStorage.setItem('dark', String(darkMode))
+  }, [darkMode])
 
-  const value = useMemo(() => {
-    const toggleDarkMode = () => setDarkModeState((prev) => !prev);
-    const setDarkMode = (next) => setDarkModeState(Boolean(next));
-    return { theme: darkMode ? "dark" : "light", toggleDarkMode, setDarkMode };
-  }, [darkMode]);
+  const toggleDarkMode = () => setDarkMode(prev => !prev)
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={{ theme: darkMode ? 'dark' : 'light', toggleDarkMode, setDarkMode }}>
+      {children}
+    </ThemeContext.Provider>
+  )
 }
 
-ThemeProvider.propTypes = {
-  children: PropTypes.node.isRequired,
-};
-
 export function useTheme() {
-  return useContext(ThemeContext);
+  return useContext(ThemeContext)
 }

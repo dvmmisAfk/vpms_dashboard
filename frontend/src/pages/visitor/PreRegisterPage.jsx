@@ -1,25 +1,14 @@
 // pages/visitor/PreRegisterPage.jsx
-import { zodResolver } from "@hookform/resolvers/zod";
 import toast from "react-hot-toast";
-import { useMemo } from "react";
 import { useDropzone } from "react-dropzone";
 import { useForm } from "react-hook-form";
 import { useParams } from "react-router-dom";
-import { z } from "zod";
 
 import { completePreRegistration } from "../../api/appointments.js";
 import { AuthPageShell } from "../../components/layout/AuthPageShell.jsx";
 import { Button } from "../../components/ui/Button.jsx";
 import { Card } from "../../components/ui/Card.jsx";
 import { Input } from "../../components/ui/Input.jsx";
-import { apiErrorMessage } from "../../utils/apiError.js";
-
-const schema = z.object({
-  name: z.string().optional(),
-  phone: z.string().optional(),
-  company: z.string().optional(),
-  purpose: z.string().optional(),
-});
 
 export default function PreRegisterPage() {
   const { token } = useParams();
@@ -31,19 +20,17 @@ export default function PreRegisterPage() {
     watch,
     formState: { errors, isSubmitting },
   } = useForm({
-    resolver: zodResolver(schema),
     defaultValues: { name: "", phone: "", company: "", purpose: "" },
   });
 
   const photo = watch("photo");
 
-  const onDrop = useMemo(() => {
-    return (accepted) => {
-      const file = accepted?.[0];
-      if (!file) return;
-      setValue("photo", file, { shouldValidate: true });
-    };
-  }, [setValue]);
+  // called when they drop or pick a file
+  const onDrop = (accepted) => {
+    const file = accepted?.[0];
+    if (!file) return;
+    setValue("photo", file);
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -68,7 +55,7 @@ export default function PreRegisterPage() {
               await completePreRegistration(token, fd);
               toast.success("Pre-registration submitted");
             } catch (e) {
-              toast.error(apiErrorMessage(e, "Failed to submit"));
+              toast.error(e?.response?.data?.message || "Failed to submit");
             }
           })}
           noValidate
@@ -79,14 +66,14 @@ export default function PreRegisterPage() {
           <Input label="Purpose" error={errors.purpose?.message} {...register("purpose")} />
 
           <div>
-            <div className="mb-1 text-xs font-semibold text-vpms-muted">Visitor photo</div>
+            <div className="mb-1 text-xs font-semibold text-slate-500">Visitor photo</div>
             <div
               {...getRootProps()}
-              className={`cursor-pointer rounded-xl border border-dashed border-vpms-border bg-vpms-bg px-4 py-6 text-center text-sm text-vpms-muted ${isDragActive ? "ring-2 ring-vpms-brand/40" : ""}`}
+              className={`cursor-pointer rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500 ${isDragActive ? "ring-2 ring-indigo-400" : ""}`}
             >
               <input {...getInputProps()} />
               Upload a clear headshot (used on the printed badge)
-              {photo?.name ? <div className="mt-3 text-xs font-semibold text-vpms-text">Selected: {photo.name}</div> : null}
+              {photo?.name ? <div className="mt-3 text-xs font-semibold text-slate-700">Selected: {photo.name}</div> : null}
             </div>
           </div>
 

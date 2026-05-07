@@ -1,129 +1,182 @@
-// controllers/analyticsController.js
-const CheckLog = require("../models/CheckLog");
-const Visitor = require("../models/Visitor");
-const { CHECK_ACTIONS, ROLES } = require("../utils/constants");
+// analytics stuff - took a while to figure out mongo aggregations
+// most of these i figured out from the mongodb docs and stack overflow
+const CheckLog = require('../models/CheckLog')
+const Visitor = require('../models/Visitor')
 
-const buildVisitorLocationFilterFromReq = (req) => {
-  if (req.user.role !== ROLES.SECURITY) return {};
-  return { location: req.user.location };
-};
-
-const summary = async (req, res, next) => {
+const summary = async (req, res) => {
   try {
-    const visitorLocationFilter = buildVisitorLocationFilterFromReq(req);
+    const now = new Date()
 
-    const baseMatch = { action: CHECK_ACTIONS.CHECK_IN };
-    if (req.user.role === ROLES.SECURITY) baseMatch.location = req.user.location;
+    // start of today (midnight)
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
-    const now = new Date();
-    const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
-    const weekStart = new Date(dayStart);
-    weekStart.setUTCDate(weekStart.getUTCDate() - 7);
-    const monthStart = new Date(dayStart);
-    monthStart.setUTCMonth(monthStart.getUTCMonth() - 1);
+    // 7 days back
+    const weekStart = new Date(todayStart)
+    weekStart.setDate(weekStart.getDate() - 7)
 
-    const [daily, weekly, monthly, purposeBreakdown, topHosts] = await Promise.all([
-      CheckLog.distinct("visitor", { ...baseMatch, timestamp: { $gte: dayStart } }).then((ids) => ids.length),
-      CheckLog.distinct("visitor", { ...baseMatch, timestamp: { $gte: weekStart } }).then((ids) => ids.length),
-      CheckLog.distinct("visitor", { ...baseMatch, timestamp: { $gte: monthStart } }).then((ids) => ids.length),
-      Visitor.aggregate([
-        { $match: { ...visitorLocationFilter, isActive: true } },
-        { $group: { _id: { $ifNull: ["$purpose", "unknown"] }, count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]),
-      Visitor.aggregate([
-        { $match: { ...visitorLocationFilter, isActive: true } },
-        { $group: { _id: "$host", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 10 },
-        {
-          $lookup: {
-            from: "users",
-            localField: "_id",
-            foreignField: "_id",
-            as: "host",
-          },
-        },
-        { $unwind: "$host" },
-        { $project: { hostId: "$_id", hostName: "$host.name", email: "$host.email", count: 1 } },
-      ]),
-    ]);
+    // 30 days back
+    const monthStart = new Date(todayStart)
+    monthStart.setDate(monthStart.getDate() - 30)
 
-    return res.json({
-      success: true,
-      data: {
-        uniqueVisitorsDaily: daily,
-        uniqueVisitorsWeekly: weekly,
-        uniqueVisitorsMonthly: monthly,
-        purposeBreakdown,
-        topHostsByVisitorCount: topHosts,
-      },
-    });
-  } catch (error) {
-    return next(error);
-  }
-};
+    // im using countDocuments on each date range separately
+    // probably could do this in one aggregation but this is easier to read
+    const totalToday = await Visitor.countDocuments({
+      createdAt: { $gte: todayStart }
+    })
 
-const peakHours = async (req, res, next) => {
-  try {
-    const buckets = await CheckLog.aggregate([
-      { $match: { action: CHECK_ACTIONS.CHECK_IN, ...(req.user.role === ROLES.SECURITY ? { location: req.user.location } : {}) } },
+    const totalWeek = await Visitor.countDocuments({
+      createdAt: { $gte: weekStart }
+    })
+
+    const totalMonth = await Visitor.countDocuments({
+      createdAt: { $gte: monthStart }
+    })
+
+    const pendingCount = await Visitor.countDocuments({ status: 'pending' })
+
+    // group visitors by purpose to show the breakdown chart
+    const purposeBreakdown = await Visitor.aggregate([
+      { $match: { isActive: true } },
       {
         $group: {
-          _id: { $hour: { date: "$timestamp", timezone: "UTC" } },
-          count: { $sum: 1 },
-        },
+          _id: '$purpose',
+          count: { $sum: 1 }
+        }
       },
-      { $sort: { _id: 1 } },
-    ]);
+      { $sort: { count: -1 } }
+    ])
 
-    const heatmap = Array.from({ length: 24 }, (_, hour) => {
-      const found = buckets.find((b) => b._id === hour);
-      return { hour, count: found ? found.count : 0 };
-    });
+    // top hosts - this aggregation was hard to figure out
+    // basically: group by host, count how many visitors each host has,
+    // then join with the users collection to get their name and email
+    // the $lookup is like a SQL JOIN
+    const topHosts = await Visitor.aggregate([
+      { $match: { isActive: true } },
+      {
+        $group: {
+          _id: '$host',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } },
+      { $limit: 10 },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'hostInfo'
+        }
+      },
+      // $unwind turns the array into a single object
+      // (lookup always returns an array even if theres only one match)
+      { $unwind: '$hostInfo' },
+      {
+        $project: {
+          hostName: '$hostInfo.name',
+          email: '$hostInfo.email',
+          count: 1
+        }
+      }
+    ])
 
-    return res.json({ success: true, data: heatmap });
-  } catch (error) {
-    return next(error);
-  }
-};
-
-const averageDuration = async (req, res, next) => {
-  try {
-    const logs = await CheckLog.find({
-      ...(req.user.role === ROLES.SECURITY ? { location: req.user.location } : {}),
+    res.json({
+      success: true,
+      data: {
+        uniqueVisitorsDaily: totalToday,
+        uniqueVisitorsWeekly: totalWeek,
+        uniqueVisitorsMonthly: totalMonth,
+        pendingCount: pendingCount,
+        purposeBreakdown: purposeBreakdown,
+        topHostsByVisitorCount: topHosts
+      }
     })
-      .select("visitor pass action timestamp")
-      .sort({ timestamp: 1 })
-      .lean();
+  } catch (err) {
+    console.log('analytics summary error:', err)
+    res.status(500).json({ success: false, message: 'Failed to get analytics' })
+  }
+}
 
-    const open = new Map();
-    let totalMinutes = 0;
-    let totalPairs = 0;
+const peakHours = function(req, res) {
+  // group check-in logs by hour to see which hours are busiest
+  CheckLog.aggregate([
+    { $match: { action: 'check-in' } },
+    {
+      $group: {
+        _id: { $hour: '$timestamp' },
+        count: { $sum: 1 }
+      }
+    },
+    { $sort: { count: -1 } },
+    { $limit: 10 }
+  ])
+  .then(function(byHour) {
+    // build a full 24-hour array with zeros where there are no check-ins
+    // so the chart shows all hours not just the ones with data
+    const heatmap = []
+    for (let hour = 0; hour < 24; hour++) {
+      const found = byHour.find(function(b) { return b._id === hour })
+      heatmap.push({ hour: hour, count: found ? found.count : 0 })
+    }
+    res.json({ success: true, data: heatmap })
+  })
+  .catch(function(err) {
+    console.log('peak hours error:', err)
+    res.status(500).json({ success: false, message: 'Something went wrong' })
+  })
+}
 
-    for (const log of logs) {
-      const key = `${log.visitor.toString()}:${log.pass.toString()}`;
+const averageDuration = async (req, res) => {
+  try {
+    // get all check-ins and check-outs then match them up manually
+    // probably not the most efficient way but i couldnt figure out how to do this
+    // in a single aggregation pipeline
+    const checkIns = await CheckLog.find({ action: 'check-in' }).lean()
+    const checkOuts = await CheckLog.find({ action: 'check-out' }).lean()
 
-      if (log.action === CHECK_ACTIONS.CHECK_IN) {
-        open.set(key, log.timestamp);
+    let totalMinutes = 0
+    let matchedCount = 0
+
+    for (let i = 0; i < checkOuts.length; i++) {
+      const out = checkOuts[i]
+
+      // find the most recent check-in for this visitor before this check-out
+      const matchingCheckIn = checkIns.find(function(ci) {
+        // need to convert to string because mongoose returns ObjectId objects
+        const sameVisitor = String(ci.visitor) === String(out.visitor)
+        const isBeforeCheckout = new Date(ci.timestamp) < new Date(out.timestamp)
+        return sameVisitor && isBeforeCheckout
+      })
+
+      if (matchingCheckIn === undefined) {
+        continue
       }
 
-      if (log.action === CHECK_ACTIONS.CHECK_OUT) {
-        const startTs = open.get(key);
-        if (!startTs) continue;
-        const diffMs = new Date(log.timestamp) - new Date(startTs);
-        totalMinutes += diffMs / 60000;
-        totalPairs += 1;
-        open.delete(key);
-      }
+      const checkInTime = new Date(matchingCheckIn.timestamp)
+      const checkOutTime = new Date(out.timestamp)
+      const diffMs = checkOutTime - checkInTime
+      const diffMinutes = diffMs / 1000 / 60  // convert to minutes
+
+      totalMinutes += diffMinutes
+      matchedCount++
     }
 
-    const avg = totalPairs ? totalMinutes / totalPairs : 0;
+    let avgMinutes = 0
+    if (matchedCount > 0) {
+      avgMinutes = totalMinutes / matchedCount
+    }
 
-    return res.json({ success: true, data: { averageVisitMinutes: Number(avg.toFixed(2)), sampleSize: totalPairs } });
-  } catch (error) {
-    return next(error);
+    res.json({
+      success: true,
+      data: {
+        averageVisitMinutes: Math.round(avgMinutes * 100) / 100,
+        sampleSize: matchedCount
+      }
+    })
+  } catch (err) {
+    console.log('average duration error:', err)
+    res.status(500).json({ success: false, message: 'Failed to calculate duration' })
   }
-};
+}
 
-module.exports = { summary, peakHours, averageDuration };
+module.exports = { summary, peakHours, averageDuration }
